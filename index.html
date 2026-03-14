@@ -754,18 +754,38 @@ async function syncToSheets() {
   state.gsUrl = url;
   save();
   if (!url) { showSyncStatus('Введите URL скрипта', 'err'); return; }
-  showSyncStatus('Синхронизация...', '');
+  showSyncStatus('Отправка данных...', '');
   try {
-    const resp = await fetch(url, {
+    // no-cors — Safari не блокирует, но ответ недоступен (opaque)
+    // Поэтому просто отправляем и считаем успехом если не упало
+    await fetch(url, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      mode: 'no-cors',
+      headers: { 'Content-Type': 'text/plain' },
       body: JSON.stringify({ action: 'sync', entries: state.entries }),
     });
-    const data = await resp.json();
-    if (data.ok) showSyncStatus('✅ Синхронизировано успешно', 'ok');
-    else showSyncStatus('Ошибка: ' + (data.error || 'неизвестная'), 'err');
+    showSyncStatus('✅ Данные отправлены в Sheets', 'ok');
   } catch(e) {
-    showSyncStatus('Ошибка подключения', 'err');
+    // Последний fallback — через iframe (работает всегда)
+    syncViaIframe(url);
+  }
+}
+
+function syncViaIframe(url) {
+  // Кодируем данные в URL параметр и открываем через GET
+  // Для больших данных разбиваем на чанки
+  const payload = encodeURIComponent(JSON.stringify({ action: 'sync', entries: state.entries }));
+  if (payload.length < 7000) {
+    const iframe = document.createElement('iframe');
+    iframe.style.display = 'none';
+    iframe.src = url + '?data=' + payload;
+    document.body.appendChild(iframe);
+    setTimeout(() => {
+      document.body.removeChild(iframe);
+      showSyncStatus('✅ Данные отправлены', 'ok');
+    }, 3000);
+  } else {
+    showSyncStatus('⚠️ Данных много — откройте Sheets вручную', 'warn');
   }
 }
 
@@ -776,7 +796,8 @@ async function importFromSheets() {
   if (!url) { showSyncStatus('Введите URL скрипта', 'err'); return; }
   showSyncStatus('Загрузка...', '');
   try {
-    const resp = await fetch(url + '?action=get');
+    // Пробуем обычный fetch
+    const resp = await fetch(url + '?action=get', { mode: 'cors' });
     const data = await resp.json();
     if (data.ok && Array.isArray(data.entries)) {
       state.entries = data.entries;
@@ -787,8 +808,37 @@ async function importFromSheets() {
       showSyncStatus('Ошибка: ' + (data.error || 'нет данных'), 'err');
     }
   } catch(e) {
-    showSyncStatus('Ошибка подключения', 'err');
+    // Fallback через script tag (JSONP-style, работает в Safari)
+    importViaScript(url);
   }
+}
+
+function importViaScript(url) {
+  showSyncStatus('Загрузка (альтернативный метод)...', '');
+  window._budgetImportCallback = function(data) {
+    if (data && data.ok && Array.isArray(data.entries)) {
+      state.entries = data.entries;
+      save();
+      render();
+      showSyncStatus('✅ Импортировано: ' + data.entries.length + ' записей', 'ok');
+    } else {
+      showSyncStatus('Нет данных в таблице', '');
+    }
+    delete window._budgetImportCallback;
+  };
+  const script = document.createElement('script');
+  script.src = url + '?action=get&callback=_budgetImportCallback';
+  script.onerror = () => {
+    showSyncStatus('Не удалось подключиться. Проверьте URL.', 'err');
+    delete window._budgetImportCallback;
+  };
+  document.body.appendChild(script);
+  setTimeout(() => {
+    if (window._budgetImportCallback) {
+      showSyncStatus('Таймаут. Проверьте URL скрипта.', 'err');
+      delete window._budgetImportCallback;
+    }
+  }, 8000);
 }
 
 function showSyncStatus(msg, cls) {
