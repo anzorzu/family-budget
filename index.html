@@ -1,0 +1,983 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Бюджет">
+<meta name="theme-color" content="#1a1a2e">
+<title>Семейный бюджет</title>
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+  :root {
+    --bg: #0f0f1a;
+    --bg2: #1a1a2e;
+    --bg3: #16213e;
+    --card: #1e1e35;
+    --card2: #252545;
+    --accent: #7c6df5;
+    --accent2: #a855f7;
+    --green: #22c55e;
+    --red: #ef4444;
+    --amber: #f59e0b;
+    --text: #f1f0fa;
+    --text2: #9d9bb8;
+    --text3: #6b6985;
+    --border: rgba(124,109,245,0.18);
+    --border2: rgba(255,255,255,0.07);
+    --radius: 16px;
+    --radius-sm: 10px;
+    --shadow: 0 4px 24px rgba(0,0,0,0.4);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  html, body { height: 100%; background: var(--bg); color: var(--text); font-family: 'Manrope', sans-serif; font-size: 15px; overscroll-behavior: none; }
+  
+  /* Layout */
+  #app { display: flex; flex-direction: column; height: 100%; max-width: 480px; margin: 0 auto; }
+  #header { padding: 52px 20px 16px; background: var(--bg2); border-bottom: 1px solid var(--border); flex-shrink: 0; }
+  #header h1 { font-family: 'Space Grotesk', sans-serif; font-size: 22px; font-weight: 600; letter-spacing: -0.3px; }
+  #header .subtitle { font-size: 12px; color: var(--text3); margin-top: 2px; }
+  
+  #month-selector { display: flex; align-items: center; gap: 8px; margin-top: 14px; }
+  #month-selector select { flex: 1; background: var(--card); border: 1px solid var(--border); color: var(--text); border-radius: var(--radius-sm); padding: 8px 12px; font-family: 'Manrope', sans-serif; font-size: 14px; font-weight: 500; appearance: none; -webkit-appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%239d9bb8' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 12px center; padding-right: 32px; }
+  #month-selector .year-nav { display: flex; gap: 4px; }
+  #month-selector button { background: var(--card); border: 1px solid var(--border); color: var(--text); border-radius: var(--radius-sm); padding: 8px 14px; font-size: 14px; font-weight: 600; cursor: pointer; transition: background 0.15s; }
+  #month-selector button:active { background: var(--card2); }
+  #year-display { font-size: 14px; font-weight: 600; color: var(--text2); padding: 0 4px; line-height: 36px; }
+  
+  /* Summary cards */
+  #summary { padding: 16px 20px; background: var(--bg2); border-bottom: 1px solid var(--border2); flex-shrink: 0; }
+  .sum-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  .sum-card { background: var(--card); border-radius: var(--radius-sm); padding: 12px; border: 1px solid var(--border2); }
+  .sum-card .label { font-size: 10px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600; margin-bottom: 6px; }
+  .sum-card .value { font-family: 'Space Grotesk', sans-serif; font-size: 17px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .sum-card .value.plan { color: var(--accent); }
+  .sum-card .value.fact { color: var(--text); }
+  .sum-card .value.diff.pos { color: var(--green); }
+  .sum-card .value.diff.neg { color: var(--red); }
+  .progress-bar { margin-top: 8px; height: 3px; background: var(--bg3); border-radius: 2px; overflow: hidden; }
+  .progress-bar .fill { height: 100%; border-radius: 2px; transition: width 0.5s ease; }
+  .fill.ok { background: linear-gradient(90deg, var(--accent), var(--accent2)); }
+  .fill.warn { background: var(--amber); }
+  .fill.over { background: var(--red); }
+  
+  /* Nav tabs */
+  #nav { display: flex; padding: 12px 20px; background: var(--bg2); gap: 6px; border-bottom: 1px solid var(--border2); flex-shrink: 0; }
+  .tab { flex: 1; text-align: center; padding: 8px 4px; border-radius: var(--radius-sm); font-size: 12px; font-weight: 600; color: var(--text3); cursor: pointer; transition: all 0.2s; border: 1px solid transparent; letter-spacing: 0.2px; }
+  .tab.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .tab:not(.active):active { background: var(--card); }
+  
+  /* Main scrollable area */
+  #main { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+  .page { display: none; padding: 16px 20px 100px; }
+  .page.active { display: block; }
+  
+  /* Add button FAB */
+  #fab { position: fixed; bottom: calc(24px + env(safe-area-inset-bottom)); right: 20px; width: 56px; height: 56px; border-radius: 50%; background: linear-gradient(135deg, var(--accent), var(--accent2)); border: none; color: #fff; font-size: 28px; font-weight: 300; cursor: pointer; box-shadow: 0 4px 20px rgba(124,109,245,0.5); display: flex; align-items: center; justify-content: center; z-index: 100; transition: transform 0.15s; }
+  #fab:active { transform: scale(0.93); }
+  
+  /* Lists */
+  .section-title { font-size: 11px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.8px; font-weight: 600; margin: 20px 0 10px; }
+  .section-title:first-child { margin-top: 0; }
+  .entry-list { display: flex; flex-direction: column; gap: 8px; }
+  .entry-card { background: var(--card); border-radius: var(--radius-sm); padding: 13px 14px; border: 1px solid var(--border2); display: flex; align-items: center; gap: 12px; cursor: pointer; transition: background 0.15s; }
+  .entry-card:active { background: var(--card2); }
+  .entry-icon { width: 38px; height: 38px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0; }
+  .entry-info { flex: 1; min-width: 0; }
+  .entry-name { font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .entry-meta { font-size: 12px; color: var(--text3); margin-top: 2px; }
+  .entry-amount { text-align: right; flex-shrink: 0; }
+  .entry-amount .amt { font-family: 'Space Grotesk', sans-serif; font-size: 15px; font-weight: 600; }
+  .entry-amount .type-badge { font-size: 10px; font-weight: 600; padding: 2px 7px; border-radius: 20px; margin-top: 3px; display: inline-block; }
+  .badge-plan { background: rgba(124,109,245,0.2); color: var(--accent); }
+  .badge-fact { background: rgba(34,197,94,0.15); color: var(--green); }
+  
+  /* Category groups */
+  .cat-group { background: var(--card); border-radius: var(--radius); margin-bottom: 12px; overflow: hidden; border: 1px solid var(--border2); }
+  .cat-header { padding: 14px 16px; display: flex; align-items: center; gap: 10px; cursor: pointer; }
+  .cat-header .cat-icon { font-size: 20px; }
+  .cat-header .cat-name { flex: 1; font-size: 14px; font-weight: 600; }
+  .cat-header .cat-totals { text-align: right; }
+  .cat-header .plan-amt { font-size: 12px; color: var(--text3); }
+  .cat-header .fact-amt { font-family: 'Space Grotesk', sans-serif; font-size: 15px; font-weight: 600; }
+  .cat-mini-bar { height: 2px; background: var(--bg3); margin: 0 16px 12px; border-radius: 1px; overflow: hidden; }
+  .cat-mini-bar .fill2 { height: 100%; border-radius: 1px; }
+  .cat-entries { border-top: 1px solid var(--border2); }
+  .cat-entry-row { display: flex; align-items: center; gap: 10px; padding: 10px 16px; border-bottom: 1px solid var(--border2); font-size: 13px; }
+  .cat-entry-row:last-child { border-bottom: none; }
+  .cat-entry-row .name { flex: 1; color: var(--text2); }
+  .cat-entry-row .date { color: var(--text3); font-size: 11px; }
+  .cat-entry-row .val { font-family: 'Space Grotesk', sans-serif; font-weight: 600; font-size: 13px; }
+  .cat-entry-row .del-btn { width: 24px; height: 24px; border-radius: 6px; background: rgba(239,68,68,0.1); border: none; color: var(--red); font-size: 14px; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  
+  /* Chart page */
+  #chart-container { position: relative; width: 100%; height: 260px; margin-bottom: 20px; }
+  .chart-legend { display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 16px; }
+  .legend-item { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text2); }
+  .legend-dot { width: 10px; height: 10px; border-radius: 3px; }
+  
+  /* Pie chart */
+  #pie-container { position: relative; width: 100%; height: 220px; margin-bottom: 16px; }
+  .pie-legend { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 20px; }
+  .pie-legend-item { display: flex; align-items: center; gap: 8px; font-size: 12px; }
+  .pie-legend-item .dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+  .pie-legend-item .pct { margin-left: auto; color: var(--text3); font-size: 11px; }
+  
+  /* Settings / Sync page */
+  .settings-section { background: var(--card); border-radius: var(--radius); margin-bottom: 16px; overflow: hidden; border: 1px solid var(--border2); }
+  .settings-row { padding: 14px 16px; display: flex; align-items: center; gap: 12px; border-bottom: 1px solid var(--border2); }
+  .settings-row:last-child { border-bottom: none; }
+  .settings-row label { font-size: 13px; font-weight: 600; flex: 1; }
+  .settings-row .hint { font-size: 11px; color: var(--text3); margin-top: 2px; }
+  .settings-row input[type=text], .settings-row input[type=url] { background: var(--bg3); border: 1px solid var(--border); color: var(--text); border-radius: var(--radius-sm); padding: 9px 12px; font-family: 'Manrope', sans-serif; font-size: 13px; width: 100%; }
+  .settings-row input[type=text]:focus, .settings-row input[type=url]:focus { outline: none; border-color: var(--accent); }
+  .btn-primary { background: linear-gradient(135deg, var(--accent), var(--accent2)); color: #fff; border: none; border-radius: var(--radius-sm); padding: 12px 20px; font-family: 'Manrope', sans-serif; font-size: 14px; font-weight: 600; cursor: pointer; width: 100%; transition: opacity 0.15s; }
+  .btn-primary:active { opacity: 0.85; }
+  .btn-secondary { background: var(--card2); color: var(--text); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 12px 20px; font-family: 'Manrope', sans-serif; font-size: 14px; font-weight: 600; cursor: pointer; width: 100%; margin-top: 10px; }
+  .sync-status { font-size: 12px; color: var(--text3); text-align: center; margin-top: 10px; }
+  .sync-status.ok { color: var(--green); }
+  .sync-status.err { color: var(--red); }
+  
+  /* Modal */
+  #modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 200; align-items: flex-end; padding: env(safe-area-inset-top) 0 0; }
+  #modal-overlay.show { display: flex; }
+  #modal { background: var(--bg2); border-radius: 24px 24px 0 0; padding: 20px 20px calc(20px + env(safe-area-inset-bottom)); width: 100%; max-height: 90vh; overflow-y: auto; border-top: 1px solid var(--border); }
+  #modal h2 { font-family: 'Space Grotesk', sans-serif; font-size: 18px; font-weight: 600; margin-bottom: 18px; }
+  .form-row { margin-bottom: 14px; }
+  .form-row label { display: block; font-size: 12px; font-weight: 600; color: var(--text3); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; }
+  .form-row input, .form-row select { width: 100%; background: var(--card); border: 1px solid var(--border); color: var(--text); border-radius: var(--radius-sm); padding: 12px 14px; font-family: 'Manrope', sans-serif; font-size: 15px; }
+  .form-row input:focus, .form-row select:focus { outline: none; border-color: var(--accent); }
+  .type-toggle { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .type-btn { padding: 12px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--card); color: var(--text2); font-family: 'Manrope', sans-serif; font-size: 14px; font-weight: 600; cursor: pointer; text-align: center; transition: all 0.15s; }
+  .type-btn.active.plan { background: rgba(124,109,245,0.25); border-color: var(--accent); color: var(--accent); }
+  .type-btn.active.fact { background: rgba(34,197,94,0.2); border-color: var(--green); color: var(--green); }
+  .form-btns { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 20px; }
+  .btn-cancel { background: var(--card2); color: var(--text2); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 13px; font-family: 'Manrope', sans-serif; font-size: 14px; font-weight: 600; cursor: pointer; }
+  .btn-save { background: linear-gradient(135deg, var(--accent), var(--accent2)); color: #fff; border: none; border-radius: var(--radius-sm); padding: 13px; font-family: 'Manrope', sans-serif; font-size: 14px; font-weight: 600; cursor: pointer; }
+  
+  /* Toast */
+  #toast { position: fixed; bottom: calc(90px + env(safe-area-inset-bottom)); left: 50%; transform: translateX(-50%) translateY(20px); background: var(--card2); color: var(--text); border: 1px solid var(--border); border-radius: 12px; padding: 10px 20px; font-size: 13px; font-weight: 500; z-index: 300; opacity: 0; transition: all 0.3s; pointer-events: none; white-space: nowrap; }
+  #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  
+  /* Calendar */
+  .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px; margin-bottom: 16px; }
+  .cal-dow { text-align: center; font-size: 10px; font-weight: 700; color: var(--text3); text-transform: uppercase; padding: 6px 0; letter-spacing: 0.4px; }
+  .cal-day { position: relative; aspect-ratio: 1; border-radius: 8px; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; padding-top: 5px; cursor: pointer; border: 1px solid transparent; transition: background 0.12s; min-height: 42px; }
+  .cal-day:active { background: var(--card2) !important; }
+  .cal-day.empty { cursor: default; }
+  .cal-day.today .day-num { background: var(--accent); color: #fff; border-radius: 50%; width: 22px; height: 22px; display: flex; align-items: center; justify-content: center; font-weight: 700; }
+  .cal-day .day-num { font-size: 12px; font-weight: 600; color: var(--text2); line-height: 1; width: 22px; height: 22px; display: flex; align-items: center; justify-content: center; }
+  .cal-day.has-entries { background: var(--card); border-color: var(--border2); }
+  .cal-day.has-entries:active { background: var(--card2); }
+  .cal-dots { display: flex; gap: 2px; flex-wrap: wrap; justify-content: center; margin-top: 3px; max-width: 100%; padding: 0 2px; }
+  .cal-dot { width: 5px; height: 5px; border-radius: 50%; flex-shrink: 0; }
+  .cal-dot.plan { background: #f59e0b; }
+  .cal-dot.fact { background: #22c55e; }
+  .cal-day-total { font-size: 8px; color: var(--text3); margin-top: 1px; font-weight: 600; }
+
+  .cal-legend { display: flex; gap: 16px; margin-bottom: 14px; }
+  .cal-legend-item { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text2); }
+  .cal-legend-dot { width: 10px; height: 10px; border-radius: 50%; }
+
+  /* Day detail panel */
+  .day-detail { background: var(--card); border-radius: var(--radius); border: 1px solid var(--border2); margin-top: 4px; overflow: hidden; }
+  .day-detail-header { padding: 12px 16px; border-bottom: 1px solid var(--border2); display: flex; align-items: center; justify-content: space-between; }
+  .day-detail-header .day-title { font-size: 14px; font-weight: 700; }
+  .day-detail-header .day-close { width: 26px; height: 26px; border-radius: 6px; background: var(--card2); border: none; color: var(--text3); font-size: 16px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+  .day-detail-row { display: flex; align-items: center; gap: 10px; padding: 10px 16px; border-bottom: 1px solid var(--border2); font-size: 13px; }
+  .day-detail-row:last-child { border-bottom: none; }
+  .day-detail-row .dd-icon { font-size: 16px; }
+  .day-detail-row .dd-name { flex: 1; color: var(--text2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .day-detail-row .dd-amt { font-family: 'Space Grotesk', sans-serif; font-weight: 600; font-size: 14px; flex-shrink: 0; }
+  .day-detail-row .dd-badge { font-size: 9px; font-weight: 700; padding: 2px 6px; border-radius: 10px; flex-shrink: 0; }
+
+  /* Week totals strip */
+  .cal-week-strip { display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px; margin-bottom: 3px; }
+  .week-day-bar { height: 3px; border-radius: 2px; }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="header">
+    <h1>💰 Семейный бюджет</h1>
+    <div class="subtitle" id="header-subtitle">Управление доходами и расходами</div>
+    <div id="month-selector">
+      <select id="month-select">
+        <option value="0">Январь</option><option value="1">Февраль</option>
+        <option value="2">Март</option><option value="3">Апрель</option>
+        <option value="4">Май</option><option value="5">Июнь</option>
+        <option value="6">Июль</option><option value="7">Август</option>
+        <option value="8">Сентябрь</option><option value="9">Октябрь</option>
+        <option value="10">Ноябрь</option><option value="11">Декабрь</option>
+      </select>
+      <div class="year-nav">
+        <button onclick="changeYear(-1)">‹</button>
+        <span id="year-display">2025</span>
+        <button onclick="changeYear(1)">›</button>
+      </div>
+    </div>
+  </div>
+  
+  <div id="summary">
+    <div class="sum-grid">
+      <div class="sum-card">
+        <div class="label">План</div>
+        <div class="value plan" id="sum-plan">0 ₽</div>
+      </div>
+      <div class="sum-card">
+        <div class="label">Факт</div>
+        <div class="value fact" id="sum-fact">0 ₽</div>
+      </div>
+      <div class="sum-card">
+        <div class="label">Остаток</div>
+        <div class="value diff" id="sum-diff">0 ₽</div>
+      </div>
+    </div>
+    <div class="progress-bar" style="margin-top: 12px;">
+      <div class="fill" id="total-progress" style="width:0%"></div>
+    </div>
+  </div>
+  
+  <div id="nav">
+    <div class="tab active" onclick="showPage('list')">Список</div>
+    <div class="tab" onclick="showPage('groups')">Категории</div>
+    <div class="tab" onclick="showPage('calendar')">Календарь</div>
+    <div class="tab" onclick="showPage('chart')">Диаграмма</div>
+    <div class="tab" onclick="showPage('settings')">Настройки</div>
+  </div>
+  
+  <div id="main">
+    <!-- LIST PAGE -->
+    <div class="page active" id="page-list">
+      <div id="list-content"></div>
+    </div>
+    
+    <!-- GROUPS PAGE -->
+    <div class="page" id="page-groups">
+      <div id="groups-content"></div>
+    </div>
+    
+    <!-- CALENDAR PAGE -->
+    <div class="page" id="page-calendar">
+      <div id="calendar-content"></div>
+    </div>
+
+    <!-- CHART PAGE -->
+    <div class="page" id="page-chart">
+      <div class="section-title">Сравнение план / факт</div>
+      <div class="chart-legend">
+        <div class="legend-item"><div class="legend-dot" style="background:#7c6df5"></div>План</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#22c55e"></div>Факт</div>
+      </div>
+      <div id="chart-container"><canvas id="barChart"></canvas></div>
+      
+      <div class="section-title">Структура расходов (факт)</div>
+      <div id="pie-container"><canvas id="pieChart"></canvas></div>
+      <div class="pie-legend" id="pie-legend"></div>
+    </div>
+    
+    <!-- SETTINGS PAGE -->
+    <div class="page" id="page-settings">
+      <div class="section-title">Синхронизация Google Sheets</div>
+      <div class="settings-section">
+        <div class="settings-row" style="flex-direction: column; align-items: stretch;">
+          <label>URL Google Apps Script</label>
+          <div class="hint" style="margin-bottom: 8px;">Вставьте URL из вашего деплоя Apps Script</div>
+          <input type="url" id="gs-url" placeholder="https://script.google.com/macros/s/.../exec" value="">
+        </div>
+      </div>
+      <button class="btn-primary" onclick="syncToSheets()">☁️ Синхронизировать</button>
+      <button class="btn-secondary" onclick="importFromSheets()">⬇️ Импортировать из Sheets</button>
+      <div class="sync-status" id="sync-status"></div>
+      
+      <div class="section-title" style="margin-top: 24px;">Категории</div>
+      <div class="settings-section" id="cat-settings-list"></div>
+      
+      <div class="section-title" style="margin-top: 24px;">Данные</div>
+      <div class="settings-section">
+        <div class="settings-row" style="flex-direction: column; align-items: stretch; gap: 10px;">
+          <button class="btn-secondary" onclick="exportJSON()">📤 Экспорт JSON</button>
+          <button class="btn-secondary" onclick="importJSON()">📥 Импорт JSON</button>
+          <input type="file" id="import-file" accept=".json" style="display:none" onchange="handleImport(event)">
+        </div>
+      </div>
+      
+      <div class="section-title" style="margin-top: 24px;">Инструкция Google Sheets</div>
+      <div class="settings-section">
+        <div class="settings-row" style="flex-direction: column; align-items: stretch;">
+          <div style="font-size:12px; color: var(--text3); line-height: 1.7;">
+            1. Создайте Google Таблицу<br>
+            2. Откройте Инструменты → Скрипт<br>
+            3. Вставьте код из файла <b style="color:var(--text2)">google-script.js</b><br>
+            4. Деплой → Новое развёртывание → Веб-приложение<br>
+            5. Доступ: "Все" → Скопируйте URL → вставьте выше
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- FAB -->
+<button id="fab" onclick="openModal()">+</button>
+
+<!-- Modal -->
+<div id="modal-overlay">
+  <div id="modal">
+    <h2 id="modal-title">Добавить расход</h2>
+    <div class="form-row">
+      <label>Тип</label>
+      <div class="type-toggle">
+        <button class="type-btn active plan" onclick="setType('plan')">📋 План</button>
+        <button class="type-btn fact" onclick="setType('fact')">✅ Факт</button>
+      </div>
+    </div>
+    <div class="form-row">
+      <label>Категория</label>
+      <select id="f-category"></select>
+    </div>
+    <div class="form-row">
+      <label>Наименование</label>
+      <input type="text" id="f-name" placeholder="Например: продукты Пятёрочка">
+    </div>
+    <div class="form-row">
+      <label>Сумма (₽)</label>
+      <input type="number" id="f-amount" placeholder="0" min="0" inputmode="decimal">
+    </div>
+    <div class="form-row">
+      <label>Дата</label>
+      <input type="date" id="f-date">
+    </div>
+    <div class="form-row">
+      <label>Кто платит</label>
+      <select id="f-who">
+        <option value="общее">👫 Общее</option>
+        <option value="я">🧑 Я</option>
+        <option value="супруга">👩 Супруга</option>
+      </select>
+    </div>
+    <div class="form-btns">
+      <button class="btn-cancel" onclick="closeModal()">Отмена</button>
+      <button class="btn-save" onclick="saveEntry()">Сохранить</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+// ===== DATA =====
+const CATEGORIES = [
+  { id: 'food',      name: 'Продукты',       icon: '🛒', color: '#7c6df5' },
+  { id: 'cafe',      name: 'Кафе и рестораны', icon: '🍽️', color: '#a855f7' },
+  { id: 'transport', name: 'Транспорт',       icon: '🚗', color: '#3b82f6' },
+  { id: 'housing',   name: 'Жильё и ЖКХ',    icon: '🏠', color: '#06b6d4' },
+  { id: 'health',    name: 'Здоровье',        icon: '💊', color: '#22c55e' },
+  { id: 'kids',      name: 'Дети',            icon: '👶', color: '#f59e0b' },
+  { id: 'clothes',   name: 'Одежда',          icon: '👗', color: '#ec4899' },
+  { id: 'entertain', name: 'Развлечения',     icon: '🎬', color: '#ef4444' },
+  { id: 'travel',    name: 'Путешествия',     icon: '✈️', color: '#8b5cf6' },
+  { id: 'savings',   name: 'Накопления',      icon: '💰', color: '#10b981' },
+  { id: 'other',     name: 'Прочее',          icon: '📦', color: '#6b7280' },
+];
+
+let state = {
+  entries: JSON.parse(localStorage.getItem('budget_entries') || '[]'),
+  selectedMonth: new Date().getMonth(),
+  selectedYear: new Date().getFullYear(),
+  currentType: 'plan',
+  editingId: null,
+  gsUrl: localStorage.getItem('budget_gs_url') || '',
+};
+
+function save() {
+  localStorage.setItem('budget_entries', JSON.stringify(state.entries));
+  localStorage.setItem('budget_gs_url', state.gsUrl);
+}
+
+function getMonthEntries() {
+  return state.entries.filter(e =>
+    e.month === state.selectedMonth && e.year === state.selectedYear
+  );
+}
+
+// ===== INIT =====
+document.getElementById('month-select').value = state.selectedMonth;
+document.getElementById('year-display').textContent = state.selectedYear;
+document.getElementById('gs-url').value = state.gsUrl;
+
+// Set today as default date in form
+document.getElementById('f-date').valueAsDate = new Date();
+
+// Populate category dropdowns
+function populateCategorySelect() {
+  const sel = document.getElementById('f-category');
+  sel.innerHTML = CATEGORIES.map(c =>
+    `<option value="${c.id}">${c.icon} ${c.name}</option>`
+  ).join('');
+}
+populateCategorySelect();
+
+// Settings category list
+function renderCatSettings() {
+  document.getElementById('cat-settings-list').innerHTML =
+    CATEGORIES.map(c => `
+      <div class="settings-row">
+        <span style="font-size:20px">${c.icon}</span>
+        <label>${c.name}</label>
+        <span style="width:14px;height:14px;border-radius:50%;background:${c.color};display:inline-block"></span>
+      </div>
+    `).join('');
+}
+renderCatSettings();
+
+// ===== NAVIGATION =====
+let barChartInstance = null;
+let pieChartInstance = null;
+
+function showPage(page) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('page-' + page).classList.add('active');
+  event.target.classList.add('active');
+  if (page === 'chart') renderCharts();
+  if (page === 'calendar') renderCalendar();
+}
+
+// ===== MONTH / YEAR =====
+document.getElementById('month-select').addEventListener('change', function() {
+  state.selectedMonth = parseInt(this.value);
+  render();
+});
+
+function changeYear(dir) {
+  state.selectedYear += dir;
+  document.getElementById('year-display').textContent = state.selectedYear;
+  render();
+}
+
+// ===== SUMMARY =====
+function fmt(n) {
+  if (Math.abs(n) >= 1000000) return (n/1000000).toFixed(1) + ' млн';
+  if (Math.abs(n) >= 1000) return (n/1000).toFixed(0) + ' тыс';
+  return Math.round(n).toLocaleString('ru') + ' ₽';
+}
+
+function fmtFull(n) {
+  return Math.round(n).toLocaleString('ru') + ' ₽';
+}
+
+function renderSummary() {
+  const entries = getMonthEntries();
+  const plan = entries.filter(e => e.type === 'plan').reduce((s,e) => s + e.amount, 0);
+  const fact = entries.filter(e => e.type === 'fact').reduce((s,e) => s + e.amount, 0);
+  const diff = plan - fact;
+  document.getElementById('sum-plan').textContent = fmt(plan);
+  document.getElementById('sum-fact').textContent = fmt(fact);
+  const diffEl = document.getElementById('sum-diff');
+  diffEl.textContent = fmt(Math.abs(diff));
+  diffEl.className = 'value diff ' + (diff >= 0 ? 'pos' : 'neg');
+  const pct = plan > 0 ? Math.min(100, (fact / plan) * 100) : 0;
+  const bar = document.getElementById('total-progress');
+  bar.style.width = pct + '%';
+  bar.className = 'fill ' + (pct < 75 ? 'ok' : pct < 100 ? 'warn' : 'over');
+  const months = ['январь','февраль','март','апрель','май','июнь','июль','август','сентябрь','октябрь','ноябрь','декабрь'];
+  document.getElementById('header-subtitle').textContent = months[state.selectedMonth].charAt(0).toUpperCase() + months[state.selectedMonth].slice(1) + ' ' + state.selectedYear;
+}
+
+// ===== LIST PAGE =====
+function renderList() {
+  const entries = getMonthEntries().sort((a,b) => new Date(b.date) - new Date(a.date));
+  const el = document.getElementById('list-content');
+  if (!entries.length) {
+    el.innerHTML = `<div class="empty"><div class="emoji">📋</div><p>Нет записей за этот месяц</p></div>`;
+    return;
+  }
+  const plans = entries.filter(e => e.type === 'plan');
+  const facts = entries.filter(e => e.type === 'fact');
+  let html = '';
+  if (plans.length) {
+    html += `<div class="section-title">📋 Запланировано (${plans.length})</div><div class="entry-list">`;
+    html += plans.map(e => entryCard(e)).join('');
+    html += '</div>';
+  }
+  if (facts.length) {
+    html += `<div class="section-title">✅ Факт (${facts.length})</div><div class="entry-list">`;
+    html += facts.map(e => entryCard(e)).join('');
+    html += '</div>';
+  }
+  el.innerHTML = html;
+}
+
+function entryCard(e) {
+  const cat = CATEGORIES.find(c => c.id === e.category) || CATEGORIES[CATEGORIES.length-1];
+  const d = e.date ? new Date(e.date).toLocaleDateString('ru', {day:'numeric',month:'short'}) : '';
+  return `<div class="entry-card" onclick="openEditModal('${e.id}')">
+    <div class="entry-icon" style="background:${cat.color}22">${cat.icon}</div>
+    <div class="entry-info">
+      <div class="entry-name">${e.name || cat.name}</div>
+      <div class="entry-meta">${cat.name} · ${d}${e.who && e.who !== 'общее' ? ' · ' + e.who : ''}</div>
+    </div>
+    <div class="entry-amount">
+      <div class="amt" style="color:${e.type==='plan'?'#7c6df5':'#22c55e'}">${fmtFull(e.amount)}</div>
+      <div class="type-badge ${e.type==='plan'?'badge-plan':'badge-fact'}">${e.type==='plan'?'план':'факт'}</div>
+    </div>
+  </div>`;
+}
+
+// ===== GROUPS PAGE =====
+function renderGroups() {
+  const entries = getMonthEntries();
+  const el = document.getElementById('groups-content');
+  if (!entries.length) {
+    el.innerHTML = `<div class="empty"><div class="emoji">🗂️</div><p>Нет записей за этот месяц</p></div>`;
+    return;
+  }
+  let html = '';
+  CATEGORIES.forEach(cat => {
+    const catEntries = entries.filter(e => e.category === cat.id);
+    if (!catEntries.length) return;
+    const planTotal = catEntries.filter(e=>e.type==='plan').reduce((s,e)=>s+e.amount,0);
+    const factTotal = catEntries.filter(e=>e.type==='fact').reduce((s,e)=>s+e.amount,0);
+    const pct = planTotal > 0 ? Math.min(100, (factTotal/planTotal)*100) : (factTotal > 0 ? 100 : 0);
+    const fillColor = pct < 75 ? '#7c6df5' : pct < 100 ? '#f59e0b' : '#ef4444';
+    html += `<div class="cat-group">
+      <div class="cat-header">
+        <span class="cat-icon">${cat.icon}</span>
+        <span class="cat-name">${cat.name}</span>
+        <div class="cat-totals">
+          <div class="plan-amt">план: ${fmtFull(planTotal)}</div>
+          <div class="fact-amt" style="color:${cat.color}">${fmtFull(factTotal)}</div>
+        </div>
+      </div>
+      <div class="cat-mini-bar"><div class="fill2" style="width:${pct}%;background:${fillColor}"></div></div>
+      <div class="cat-entries">`;
+    catEntries.sort((a,b) => new Date(b.date)-new Date(a.date)).forEach(e => {
+      const d = e.date ? new Date(e.date).toLocaleDateString('ru',{day:'numeric',month:'short'}) : '';
+      html += `<div class="cat-entry-row">
+        <span class="type-badge ${e.type==='plan'?'badge-plan':'badge-fact'}">${e.type==='plan'?'П':'Ф'}</span>
+        <span class="name">${e.name || cat.name}</span>
+        <span class="date">${d}</span>
+        <span class="val" style="color:${e.type==='plan'?'#7c6df5':'#22c55e'}">${fmtFull(e.amount)}</span>
+        <button class="del-btn" onclick="deleteEntry('${e.id}',event)">×</button>
+      </div>`;
+    });
+    html += `</div></div>`;
+  });
+  el.innerHTML = html || `<div class="empty"><div class="emoji">🗂️</div><p>Нет данных</p></div>`;
+}
+
+// ===== CHARTS =====
+const CHART_COLORS = CATEGORIES.map(c => c.color);
+
+function renderCharts() {
+  const entries = getMonthEntries();
+  
+  // Bar chart: plan vs fact per category
+  const labels = [], planData = [], factData = [];
+  CATEGORIES.forEach(cat => {
+    const cEntries = entries.filter(e => e.category === cat.id);
+    const p = cEntries.filter(e=>e.type==='plan').reduce((s,e)=>s+e.amount,0);
+    const f = cEntries.filter(e=>e.type==='fact').reduce((s,e)=>s+e.amount,0);
+    if (p > 0 || f > 0) {
+      labels.push(cat.icon + ' ' + cat.name.split(' ')[0]);
+      planData.push(p);
+      factData.push(f);
+    }
+  });
+
+  if (barChartInstance) barChartInstance.destroy();
+  const barCtx = document.getElementById('barChart').getContext('2d');
+  barChartInstance = new Chart(barCtx, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [
+        { label: 'План', data: planData, backgroundColor: 'rgba(124,109,245,0.7)', borderRadius: 6, borderSkipped: false },
+        { label: 'Факт', data: factData, backgroundColor: 'rgba(34,197,94,0.7)', borderRadius: 6, borderSkipped: false },
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { ticks: { color: '#6b6985', font: { size: 10 } }, grid: { color: 'rgba(255,255,255,0.04)' } },
+        y: { ticks: { color: '#6b6985', font: { size: 10 }, callback: v => fmt(v) }, grid: { color: 'rgba(255,255,255,0.07)' } }
+      }
+    }
+  });
+
+  // Pie chart: fact by category
+  const pieLabels = [], pieData = [], pieColors = [];
+  CATEGORIES.forEach(cat => {
+    const f = entries.filter(e=>e.category===cat.id && e.type==='fact').reduce((s,e)=>s+e.amount,0);
+    if (f > 0) { pieLabels.push(cat); pieData.push(f); pieColors.push(cat.color); }
+  });
+
+  if (pieChartInstance) pieChartInstance.destroy();
+  const pieCtx = document.getElementById('pieChart').getContext('2d');
+  const total = pieData.reduce((s,v)=>s+v,0);
+  pieChartInstance = new Chart(pieCtx, {
+    type: 'doughnut',
+    data: { labels: pieLabels.map(c=>c.name), datasets: [{ data: pieData, backgroundColor: pieColors, borderWidth: 2, borderColor: '#1a1a2e' }] },
+    options: {
+      responsive: true, maintainAspectRatio: false, cutout: '65%',
+      plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => ' ' + fmtFull(ctx.raw) } } }
+    }
+  });
+
+  // Custom legend
+  const legendEl = document.getElementById('pie-legend');
+  if (pieLabels.length) {
+    legendEl.innerHTML = pieLabels.map((cat, i) => `
+      <div class="pie-legend-item">
+        <div class="dot" style="background:${cat.color}"></div>
+        <span>${cat.icon} ${cat.name}</span>
+        <span class="pct">${total>0?Math.round(pieData[i]/total*100)+'%':'0%'}</span>
+      </div>
+    `).join('');
+  } else {
+    legendEl.innerHTML = '';
+  }
+}
+
+// ===== MODAL =====
+function openModal() {
+  state.editingId = null;
+  document.getElementById('modal-title').textContent = 'Добавить расход';
+  document.getElementById('f-name').value = '';
+  document.getElementById('f-amount').value = '';
+  document.getElementById('f-date').valueAsDate = new Date();
+  document.getElementById('f-who').value = 'общее';
+  document.getElementById('f-category').value = 'food';
+  setType('plan');
+  document.getElementById('modal-overlay').classList.add('show');
+  setTimeout(() => document.getElementById('f-name').focus(), 300);
+}
+
+function openEditModal(id) {
+  const e = state.entries.find(x => x.id === id);
+  if (!e) return;
+  state.editingId = id;
+  document.getElementById('modal-title').textContent = 'Редактировать';
+  document.getElementById('f-name').value = e.name || '';
+  document.getElementById('f-amount').value = e.amount;
+  document.getElementById('f-date').value = e.date || '';
+  document.getElementById('f-who').value = e.who || 'общее';
+  document.getElementById('f-category').value = e.category || 'other';
+  setType(e.type);
+  document.getElementById('modal-overlay').classList.add('show');
+}
+
+function closeModal() {
+  document.getElementById('modal-overlay').classList.remove('show');
+}
+
+document.getElementById('modal-overlay').addEventListener('click', function(e) {
+  if (e.target === this) closeModal();
+});
+
+function setType(t) {
+  state.currentType = t;
+  document.querySelectorAll('.type-btn').forEach(b => {
+    b.classList.remove('active');
+  });
+  const planBtn = document.querySelector('.type-btn.plan');
+  const factBtn = document.querySelector('.type-btn.fact');
+  if (t === 'plan') planBtn.classList.add('active');
+  else factBtn.classList.add('active');
+}
+
+function saveEntry() {
+  const name = document.getElementById('f-name').value.trim();
+  const amount = parseFloat(document.getElementById('f-amount').value);
+  const date = document.getElementById('f-date').value;
+  const category = document.getElementById('f-category').value;
+  const who = document.getElementById('f-who').value;
+
+  if (!amount || amount <= 0) { showToast('Введите сумму'); return; }
+  if (!date) { showToast('Выберите дату'); return; }
+
+  const dateObj = new Date(date);
+  const entryData = {
+    type: state.currentType,
+    category, name, amount,
+    date,
+    month: dateObj.getMonth(),
+    year: dateObj.getFullYear(),
+    who,
+    updatedAt: new Date().toISOString(),
+  };
+
+  if (state.editingId) {
+    const idx = state.entries.findIndex(e => e.id === state.editingId);
+    if (idx !== -1) state.entries[idx] = { ...state.entries[idx], ...entryData };
+    showToast('Запись обновлена');
+  } else {
+    entryData.id = Date.now() + Math.random().toString(36).slice(2);
+    entryData.createdAt = new Date().toISOString();
+    state.entries.push(entryData);
+    showToast('Запись добавлена');
+  }
+
+  save();
+  closeModal();
+  render();
+}
+
+function deleteEntry(id, ev) {
+  ev.stopPropagation();
+  if (!confirm('Удалить запись?')) return;
+  state.entries = state.entries.filter(e => e.id !== id);
+  save();
+  render();
+  showToast('Удалено');
+}
+
+// ===== RENDER =====
+function render() {
+  renderSummary();
+  renderList();
+  renderGroups();
+  if (document.getElementById('page-chart').classList.contains('active')) renderCharts();
+  if (document.getElementById('page-calendar').classList.contains('active')) renderCalendar();
+}
+render();
+
+// ===== GOOGLE SHEETS SYNC =====
+async function syncToSheets() {
+  const url = document.getElementById('gs-url').value.trim();
+  state.gsUrl = url;
+  save();
+  if (!url) { showSyncStatus('Введите URL скрипта', 'err'); return; }
+  showSyncStatus('Синхронизация...', '');
+  try {
+    const resp = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'sync', entries: state.entries }),
+    });
+    const data = await resp.json();
+    if (data.ok) showSyncStatus('✅ Синхронизировано успешно', 'ok');
+    else showSyncStatus('Ошибка: ' + (data.error || 'неизвестная'), 'err');
+  } catch(e) {
+    showSyncStatus('Ошибка подключения', 'err');
+  }
+}
+
+async function importFromSheets() {
+  const url = document.getElementById('gs-url').value.trim();
+  state.gsUrl = url;
+  save();
+  if (!url) { showSyncStatus('Введите URL скрипта', 'err'); return; }
+  showSyncStatus('Загрузка...', '');
+  try {
+    const resp = await fetch(url + '?action=get');
+    const data = await resp.json();
+    if (data.ok && Array.isArray(data.entries)) {
+      state.entries = data.entries;
+      save();
+      render();
+      showSyncStatus('✅ Импортировано: ' + data.entries.length + ' записей', 'ok');
+    } else {
+      showSyncStatus('Ошибка: ' + (data.error || 'нет данных'), 'err');
+    }
+  } catch(e) {
+    showSyncStatus('Ошибка подключения', 'err');
+  }
+}
+
+function showSyncStatus(msg, cls) {
+  const el = document.getElementById('sync-status');
+  el.textContent = msg;
+  el.className = 'sync-status' + (cls ? ' ' + cls : '');
+}
+
+// ===== EXPORT / IMPORT =====
+function exportJSON() {
+  const blob = new Blob([JSON.stringify(state.entries, null, 2)], {type: 'application/json'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'budget_' + new Date().toISOString().slice(0,10) + '.json';
+  a.click();
+}
+
+function importJSON() { document.getElementById('import-file').click(); }
+
+function handleImport(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    try {
+      const data = JSON.parse(ev.target.result);
+      if (!Array.isArray(data)) throw new Error('Неверный формат');
+      state.entries = data;
+      save();
+      render();
+      showToast('Импортировано ' + data.length + ' записей');
+    } catch { showToast('Ошибка файла'); }
+  };
+  reader.readAsText(file);
+}
+
+// ===== CALENDAR =====
+let calSelectedDay = null;
+
+function renderCalendar() {
+  const y = state.selectedYear;
+  const m = state.selectedMonth;
+  const entries = getMonthEntries();
+
+  // Build a map: day -> { plan: [...], fact: [...] }
+  const dayMap = {};
+  entries.forEach(e => {
+    if (!e.date) return;
+    const d = new Date(e.date).getDate();
+    if (!dayMap[d]) dayMap[d] = { plan: [], fact: [] };
+    dayMap[d][e.type].push(e);
+  });
+
+  const firstDay = new Date(y, m, 1).getDay(); // 0=Sun
+  const startOffset = (firstDay + 6) % 7; // Mon-start
+  const daysInMonth = new Date(y, m + 1, 0).getDate();
+  const today = new Date();
+  const isCurrentMonth = today.getFullYear() === y && today.getMonth() === m;
+  const todayDate = isCurrentMonth ? today.getDate() : -1;
+
+  const monthNames = ['Январь','Февраль','Март','Апрель','Май','Июнь','Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь'];
+
+  // Summary for the month
+  const totalPlan = entries.filter(e=>e.type==='plan').reduce((s,e)=>s+e.amount,0);
+  const totalFact = entries.filter(e=>e.type==='fact').reduce((s,e)=>s+e.amount,0);
+
+  let html = '';
+
+  // Month title & legend
+  html += `<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+    <div style="font-family:'Space Grotesk',sans-serif;font-size:17px;font-weight:600;">${monthNames[m]} ${y}</div>
+    <div style="font-size:12px;color:var(--text3);">${entries.length} записей</div>
+  </div>`;
+
+  html += `<div class="cal-legend">
+    <div class="cal-legend-item"><div class="cal-legend-dot" style="background:#f59e0b"></div>Планируемые</div>
+    <div class="cal-legend-item"><div class="cal-legend-dot" style="background:#22c55e"></div>Фактические</div>
+  </div>`;
+
+  // Days of week header
+  const dows = ['Пн','Вт','Ср','Чт','Пт','Сб','Вс'];
+  html += `<div class="cal-grid">`;
+  dows.forEach(d => { html += `<div class="cal-dow">${d}</div>`; });
+
+  // Empty cells before day 1
+  for (let i = 0; i < startOffset; i++) {
+    html += `<div class="cal-day empty"></div>`;
+  }
+
+  // Day cells
+  for (let day = 1; day <= daysInMonth; day++) {
+    const info = dayMap[day];
+    const isToday = day === todayDate;
+    const hasPlan = info && info.plan.length > 0;
+    const hasFact = info && info.fact.length > 0;
+    const hasAny = hasPlan || hasFact;
+    const isSelected = calSelectedDay === day;
+
+    // Dots: up to 3 plan + 3 fact
+    let dots = '';
+    if (info) {
+      const planCount = Math.min(info.plan.length, 3);
+      const factCount = Math.min(info.fact.length, 3);
+      for (let i = 0; i < planCount; i++) dots += `<div class="cal-dot plan"></div>`;
+      for (let i = 0; i < factCount; i++) dots += `<div class="cal-dot fact"></div>`;
+    }
+
+    // Day total (compact)
+    let dayTotal = '';
+    if (hasAny) {
+      const planSum = info.plan.reduce((s,e)=>s+e.amount,0);
+      const factSum = info.fact.reduce((s,e)=>s+e.amount,0);
+      const shown = factSum > 0 ? factSum : planSum;
+      dayTotal = `<div class="cal-day-total">${shown >= 1000 ? Math.round(shown/1000)+'т' : Math.round(shown)}</div>`;
+    }
+
+    const selectedStyle = isSelected ? 'border-color:var(--accent);background:var(--card2);' : '';
+
+    html += `<div class="cal-day ${hasAny?'has-entries':''} ${isToday?'today':''}"
+      style="${selectedStyle}"
+      onclick="selectCalDay(${day})">
+      <div class="day-num">${day}</div>
+      ${dots ? `<div class="cal-dots">${dots}</div>` : ''}
+      ${dayTotal}
+    </div>`;
+  }
+  html += `</div>`; // end cal-grid
+
+  // Month totals bar
+  html += `<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px;">
+    <div style="background:rgba(245,158,11,0.12);border:1px solid rgba(245,158,11,0.3);border-radius:10px;padding:12px;">
+      <div style="font-size:10px;color:#f59e0b;font-weight:700;letter-spacing:0.5px;text-transform:uppercase;margin-bottom:4px;">📋 План</div>
+      <div style="font-family:'Space Grotesk',sans-serif;font-size:16px;font-weight:600;color:#f59e0b;">${fmtFull(totalPlan)}</div>
+    </div>
+    <div style="background:rgba(34,197,94,0.1);border:1px solid rgba(34,197,94,0.25);border-radius:10px;padding:12px;">
+      <div style="font-size:10px;color:#22c55e;font-weight:700;letter-spacing:0.5px;text-transform:uppercase;margin-bottom:4px;">✅ Факт</div>
+      <div style="font-family:'Space Grotesk',sans-serif;font-size:16px;font-weight:600;color:#22c55e;">${fmtFull(totalFact)}</div>
+    </div>
+  </div>`;
+
+  // Selected day detail
+  if (calSelectedDay && dayMap[calSelectedDay]) {
+    const info = dayMap[calSelectedDay];
+    const allDay = [...info.plan, ...info.fact].sort((a,b) => (a.type==='plan'?0:1)-(b.type==='plan'?0:1));
+    const dateLabel = new Date(y, m, calSelectedDay).toLocaleDateString('ru', {day:'numeric', month:'long', weekday:'long'});
+    html += `<div class="day-detail">
+      <div class="day-detail-header">
+        <div class="day-title">${dateLabel}</div>
+        <button class="day-close" onclick="selectCalDay(null)">×</button>
+      </div>`;
+    allDay.forEach(e => {
+      const cat = CATEGORIES.find(c=>c.id===e.category) || CATEGORIES[CATEGORIES.length-1];
+      const isPlan = e.type === 'plan';
+      html += `<div class="day-detail-row" onclick="openEditModal('${e.id}')">
+        <span class="dd-icon">${cat.icon}</span>
+        <span class="dd-name">${e.name || cat.name}</span>
+        <span class="dd-badge ${isPlan?'badge-plan':'badge-fact'}">${isPlan?'П':'Ф'}</span>
+        <span class="dd-amt" style="color:${isPlan?'#f59e0b':'#22c55e'}">${fmtFull(e.amount)}</span>
+      </div>`;
+    });
+    html += `</div>`;
+  } else if (calSelectedDay) {
+    const dateLabel = new Date(y, m, calSelectedDay).toLocaleDateString('ru', {day:'numeric', month:'long', weekday:'long'});
+    html += `<div class="day-detail">
+      <div class="day-detail-header">
+        <div class="day-title">${dateLabel}</div>
+        <button class="day-close" onclick="selectCalDay(null)">×</button>
+      </div>
+      <div class="day-detail-row"><span class="dd-name" style="color:var(--text3);font-style:italic;">Нет записей за этот день</span></div>
+    </div>`;
+  }
+
+  document.getElementById('calendar-content').innerHTML = html;
+}
+
+function selectCalDay(day) {
+  calSelectedDay = (day === calSelectedDay) ? null : day;
+  renderCalendar();
+}
+
+// ===== TOAST =====
+let toastTimer;
+function showToast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('show'), 2200);
+}
+</script>
+</body>
+</html>
